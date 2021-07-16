@@ -130,7 +130,10 @@ void code_contractst::check_apply_loop_contracts(
       t->location_number > loop_end->location_number)
       loop_end = t;
 
-  // see whether we have an invariant and a decreases clause
+  // see whether we have an assigns clause, an invariant and a decreases clause
+
+  exprt assigns = static_cast<const exprt &>(
+    loop_end->get_condition().find(ID_C_spec_assigns));
   exprt invariant = static_cast<const exprt &>(
     loop_end->get_condition().find(ID_C_spec_loop_invariant));
   exprt decreases_clause = static_cast<const exprt &>(
@@ -171,12 +174,102 @@ void code_contractst::check_apply_loop_contracts(
   //   assume(false);
   //   E: ...
 
-  // find out what can get changed in the loop
+  // AALOK:
+  // Check that the assigns clause for loop is compatible
+  // with the assigns clause for the calling function.
+
+  assigns_clauset assigns_clause(assigns, *this, loop_head, log);
+
+  if(assigns.is_not_nil())
+  {
+    // extract the assigns clause of the function:
+    const symbolt &function_symbol = ns.lookup(goto_function);
+    const auto &code_type = to_code_with_contract_type(function_symbol.type);
+    exprt function_assigns = code_type.assigns();
+
+    if(function_assigns.is_not_nil())
+    {
+      // check compatibility of assigns clause with the called function
+      assigns_clauset function_assigns_clause(
+        function_assigns, *this, function_id, log);
+      exprt compatible =
+        assigns_clause.compatible_expression(function_assigns_clause);
+      goto_programt alias_assertion;
+      alias_assertion.add(goto_programt::make_assertion(
+        compatible, instruction_iterator->source_location));
+      alias_assertion.instructions.back().source_location.set_comment(
+        "Check compatibility of assigns clause with the called function");
+      program.insert_before_swap(instruction_iterator, alias_assertion);
+      ++instruction_iterator;
+    }
+  }
+
+  // Identify the variables to havoc.
   modifiest modifies;
-  get_modifies(local_may_alias, loop, modifies);
+
+  if(assigns.is_not_nil())
+  {
+    // If there is an assigns clause, identify the variables in the assigns clause. 
+    modifies = ??;  // QUESTION: How do I extract a set of expressions from assigns clause?
+  } else
+  {
+    // If there is no assigns clause, find out what can get changed in the loop.
+    get_modifies(local_may_alias, loop, modifies);
+  }
 
   // build the havocking code
   goto_programt havoc_code;
+  build_havoc_code(loop_head, modifies, havoc_code);
+
+
+  // Create a list of variables that are okay to assign.
+  // PROBLEM: Considers all freely assignable variables 
+  // of the function, not of the loop. 
+
+  const irep_idt function_id(function_name);
+  const symbolt &function_symbol = ns.lookup(function_id);
+  const auto &type = to_code_with_contract_type(function_symbol.type);
+
+  // Create a list of variables that are okay to assign.
+  std::set<irep_idt> freely_assignable_symbols;
+  for(code_typet::parametert param : type.parameters())
+  {
+    freely_assignable_symbols.insert(param.get_identifier());
+  }
+
+  goto_programt::targett init_instruction = loop_head + 1
+
+  for(instruction_it = init_instruction; instruction_it != loop_end; ++instruction_it)
+  {
+    if(instruction_it->is_decl())
+    {
+      freely_assignable_symbols.insert(
+        instruction_it->get_decl().symbol().get_identifier());
+
+      assigns_clause_targett *new_target =
+        assigns.add_target(instruction_it->get_decl().symbol());
+      goto_programt &pointer_capture = new_target->get_init_block();
+
+      lines_to_iterate = pointer_capture.instructions.size();
+      for(auto in : pointer_capture.instructions)
+      {
+        program.insert_after(instruction_it, in);
+        ++instruction_it;
+      }
+    }
+    else if(instruction_it->is_assign())
+    {
+      instrument_assign_statement(
+        instruction_it,
+        program,
+        assigns_expr,
+        freely_assignable_symbols,
+        assigns);
+    }
+  }
+
+  // TODO: What if a function is called inside a loop? 
+  // TODO: What if there are nested loops?
 
   // process quantified variables correctly (introduce a fresh temporary)
   // and return a copy of the invariant
@@ -187,6 +280,7 @@ void code_contractst::check_apply_loop_contracts(
     replace(invariant_copy);
     return invariant_copy;
   };
+  
 
   // Generate: assert(invariant) just before the loop
   // We use a block scope to create a temporary assertion,
@@ -198,9 +292,6 @@ void code_contractst::check_apply_loop_contracts(
     havoc_code.instructions.back().source_location.set_comment(
       "Check loop invariant before entry");
   }
-
-  // havoc variables being written to
-  build_havoc_code(loop_head, modifies, havoc_code);
 
   // Generate: assume(invariant) just after havocing
   // We use a block scope to create a temporary assumption,
