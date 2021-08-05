@@ -820,6 +820,7 @@ void c_typecheck_baset::typecheck_spec_loop_invariant(codet &code)
     {
       typecheck_expr(invariant);
       implicit_typecast_bool(invariant);
+      disallow_history_variables(invariant, ID_old);
     }
   }
 }

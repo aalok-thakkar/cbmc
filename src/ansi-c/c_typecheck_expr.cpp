@@ -2704,7 +2704,21 @@ exprt c_typecheck_baset::do_special_functions(
       throw 0;
     }
 
-    old_exprt old_expr(expr.arguments()[0]);
+    history_exprt old_expr(expr.arguments()[0], ID_old);
+    old_expr.add_source_location() = source_location;
+
+    return std::move(old_expr);
+  }
+  else if(identifier == CPROVER_PREFIX "loop_entry")
+  {
+    if(expr.arguments().size() != 1)
+    {
+      error().source_location = f_op.source_location();
+      error() << identifier << " expects one operand" << eom;
+      throw 0;
+    }
+
+    history_exprt old_expr(expr.arguments()[0], ID_loop_entry);
     old_expr.add_source_location() = source_location;
 
     return std::move(old_expr);
@@ -3957,18 +3971,27 @@ void c_typecheck_baset::make_constant_index(exprt &expr)
   }
 }
 
-void c_typecheck_baset::disallow_history_variables(const exprt &expr) const
+void c_typecheck_baset::disallow_history_variables(
+  const exprt &expr,
+  const irep_idt &id) const
 {
   for(auto &op : expr.operands())
   {
-    disallow_history_variables(op);
+    disallow_history_variables(op, id);
   }
 
-  if(expr.id() == ID_old)
+  if(expr.id() == ID_old && id == ID_old)
+  {
+    error().source_location = expr.source_location();
+    error() << CPROVER_PREFIX "old expressions are not allowed in this context"
+            << eom;
+    throw 0;
+  }
+  else if(expr.id() == ID_loop_entry && id == ID_loop_entry)
   {
     error().source_location = expr.source_location();
     error() << CPROVER_PREFIX
-      "old expressions are not allowed in " CPROVER_PREFIX "requires clauses"
+      "loop_entry expressions are not allowed in this context"
             << eom;
     throw 0;
   }

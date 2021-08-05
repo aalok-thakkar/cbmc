@@ -3,8 +3,8 @@ main.c
 --replace-all-calls-with-contracts
 ^EXIT=(1|64)$
 ^SIGNAL=0$
+^main.c.* error: __CPROVER_old expressions are not allowed in this context$
 ^CONVERSION ERROR$
-error: __CPROVER_old expressions are not allowed in __CPROVER_requires clauses
 --
 --
 Verification:

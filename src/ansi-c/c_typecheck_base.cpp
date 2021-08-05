@@ -730,7 +730,8 @@ void c_typecheck_baset::typecheck_declaration(
           {
             typecheck_expr(requires);
             implicit_typecast_bool(requires);
-            disallow_history_variables(requires);
+            disallow_history_variables(requires, ID_old);
+            disallow_history_variables(requires, ID_loop_entry);
           }
         }
 
@@ -751,6 +752,7 @@ void c_typecheck_baset::typecheck_declaration(
           {
             typecheck_expr(ensures);
             implicit_typecast_bool(ensures);
+            disallow_history_variables(ensures, ID_loop_entry);
           }
 
           if(return_type.id() != ID_empty)
