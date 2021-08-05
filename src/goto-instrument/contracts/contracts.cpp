@@ -145,6 +145,7 @@ void code_contractst::check_apply_loop_contracts(
   //   H: loop;
   //   E: ...
   // to
+  //   process history variables;
   //   H: assert(invariant);
   //   havoc;
   //   assume(invariant);
@@ -173,6 +174,16 @@ void code_contractst::check_apply_loop_contracts(
     replace(invariant_copy);
     return invariant_copy;
   };
+
+  // Process "loop_entry" history variables
+  std::map<exprt, exprt> parameter2history;
+  goto_programt history;
+
+  // Find and replace "loop_entry" expression in the "invariant" expression.
+  replace_old_parameter(invariant, parameter2history, loop_head->source_location, mode, history);
+
+  // Create 'loop_entry' history variables
+  insert_before_swap_and_advance(goto_function.body, loop_head, history);
 
   // Generate: assert(invariant) just before the loop
   // We use a block scope to create a temporary assertion,
@@ -387,10 +398,19 @@ void code_contractst::replace_old_parameter(
     replace_old_parameter(op, parameter2history, location, mode, history);
   }
 
-  if(expr.id() == ID_old)
+  if(expr.id() == ID_old ||
+     expr.id() == ID_loop_entry)
   {
-    DATA_INVARIANT(
+    if (expr.id() == ID_old)
+    {
+      DATA_INVARIANT(
       expr.operands().size() == 1, CPROVER_PREFIX "old must have one operand");
+    }
+    if (expr.id() == ID_loop_entry)
+    {
+      DATA_INVARIANT(
+      expr.operands().size() == 1, CPROVER_PREFIX "loop_entry must have one operand");
+    }
 
     const auto &parameter = to_old_expr(expr).expression();
 
@@ -427,9 +447,18 @@ void code_contractst::replace_old_parameter(
     }
     else
     {
-      log.error() << CPROVER_PREFIX "old does not currently support "
+      if (expr.id() == ID_old)
+      {
+        log.error() << CPROVER_PREFIX "old does not currently support "
                   << parameter.id() << " expressions." << messaget::eom;
       throw 0;
+      }
+      if (expr.id() == ID_loop_entry)
+      {
+        log.error() << CPROVER_PREFIX "loop_entry does not currently support "
+                  << parameter.id() << " expressions." << messaget::eom;
+      throw 0;
+      }
     }
   }
 }

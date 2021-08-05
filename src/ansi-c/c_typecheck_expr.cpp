@@ -2647,7 +2647,8 @@ exprt c_typecheck_baset::do_special_functions(
 
     return std::move(ok_expr);
   }
-  else if(identifier == CPROVER_PREFIX "old")
+  else if(identifier == CPROVER_PREFIX "old" ||
+          identifier == CPROVER_PREFIX "loop_entry")
   {
     if(expr.arguments().size() != 1)
     {
@@ -3921,6 +3922,23 @@ void c_typecheck_baset::disallow_history_variables(const exprt &expr) const
     error().source_location = expr.source_location();
     error() << CPROVER_PREFIX
       "old expressions are not allowed in " CPROVER_PREFIX "requires clauses"
+            << eom;
+    throw 0;
+  }
+}
+
+void c_typecheck_baset::disallow_loop_history_variables(const exprt &expr) const
+{
+  for(auto &op : expr.operands())
+  {
+    disallow_loop_history_variables(op);
+  }
+
+  if(expr.id() == ID_loop_entry)
+  {
+    error().source_location = expr.source_location();
+    error() << CPROVER_PREFIX
+      "loop_entry expressions are not allowed in function contracts"
             << eom;
     throw 0;
   }
