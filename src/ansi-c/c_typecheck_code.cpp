@@ -820,6 +820,7 @@ void c_typecheck_baset::typecheck_spec_loop_invariant(codet &code)
     {
       typecheck_expr(invariant);
       implicit_typecast_bool(invariant);
+      disallow_function_history_variables(invariant);
     }
   }
 }
@@ -834,5 +835,22 @@ void c_typecheck_baset::typecheck_spec_decreases(codet &code)
       typecheck_expr(decreases_clause_component);
       implicit_typecast_arithmetic(decreases_clause_component);
     }
+  }
+}
+
+void c_typecheck_baset::disallow_function_history_variables(const exprt &expr) const
+{
+  for(auto &op : expr.operands())
+  {
+    disallow_function_history_variables(op);
+  }
+
+  if(expr.id() == ID_old)
+  {
+    error().source_location = expr.source_location();
+    error() << CPROVER_PREFIX
+      "old expressions are not allowed in " CPROVER_PREFIX "invariant clauses"
+            << eom;
+    throw 0;
   }
 }

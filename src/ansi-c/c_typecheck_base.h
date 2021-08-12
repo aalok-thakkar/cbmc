@@ -146,6 +146,7 @@ protected:
   virtual void typecheck_start_thread(codet &code);
   virtual void typecheck_spec_loop_invariant(codet &code);
   virtual void typecheck_spec_decreases(codet &code);
+  virtual void disallow_function_history_variables(const exprt &expr) const;
 
   bool break_is_allowed;
   bool continue_is_allowed;
