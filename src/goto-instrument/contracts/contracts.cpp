@@ -175,15 +175,23 @@ void code_contractst::check_apply_loop_contracts(
     return invariant_copy;
   };
 
-  // Process "loop_entry" history variables
-  std::map<exprt, exprt> parameter2history;
-  goto_programt history;
+  // Process "loop_entry" and "loop_current" history variables
+  std::map<exprt, exprt> parameter2history_loop_entry;
+  goto_programt history_loop_entry;
+  std::map<exprt, exprt> parameter2history_loop_current;
+  goto_programt history_loop_current;
 
   // Find and replace "loop_entry" expression in the "invariant" expression.
-  replace_old_parameter(invariant, parameter2history, loop_head->source_location, mode, history);
+  replace_loop_entry_parameter(invariant, parameter2history_loop_entry, loop_head->source_location, mode, history_loop_entry);
+
+    // Find and replace "loop_current" expression in the "invariant" expression.
+  replace_loop_current_parameter(invariant, parameter2history_loop_current, loop_head->source_location, mode, history_loop_current);
 
   // Create 'loop_entry' history variables
-  insert_before_swap_and_advance(goto_function.body, loop_head, history);
+  insert_before_swap_and_advance(goto_function.body, loop_head, history_loop_entry);
+
+    // Create 'loop_current' history variables
+  insert_before_swap_and_advance(goto_function.body, loop_head, history_loop_current);
 
   // Generate: assert(invariant) just before the loop
   // We use a block scope to create a temporary assertion,
@@ -254,6 +262,9 @@ void code_contractst::check_apply_loop_contracts(
 
     goto_function.body.destructive_insert(std::next(loop_head), havoc_code);
   }
+
+  // Assign: Loop current history variable.
+  insert_before_swap_and_advance(goto_function.body, loop_end, history_loop_current);
 
   // Generate: assert(invariant) just after the loop exits
   // We use a block scope to create a temporary assertion,
@@ -459,6 +470,183 @@ void code_contractst::replace_old_parameter(
                   << parameter.id() << " expressions." << messaget::eom;
       throw 0;
       }
+    }
+  }
+}
+
+void code_contractst::replace_old_parameter(
+  exprt &expr,
+  std::map<exprt, exprt> &parameter2history,
+  source_locationt location,
+  const irep_idt &mode,
+  goto_programt &history)
+{
+  for(auto &op : expr.operands())
+  {
+    replace_old_parameter(op, parameter2history, location, mode, history);
+  }
+
+  if(expr.id() == ID_old)
+  {
+    DATA_INVARIANT(
+    expr.operands().size() == 1, CPROVER_PREFIX "old must have one operand");
+
+    const auto &parameter = to_old_expr(expr).expression();
+
+    // TODO: generalize below
+    if(parameter.id() == ID_dereference)
+    {
+      const auto &dereference_expr = to_dereference_expr(parameter);
+
+      auto it = parameter2history.find(dereference_expr);
+
+      if(it == parameter2history.end())
+      {
+        // 1. Create a temporary symbol expression that represents the
+        // history variable
+        symbol_exprt tmp_symbol =
+          new_tmp_symbol(dereference_expr.type(), location, mode).symbol_expr();
+
+        // 2. Associate the above temporary variable to it's corresponding
+        // expression
+        parameter2history[dereference_expr] = tmp_symbol;
+
+        // 3. Add the required instructions to the instructions list
+        // 3.1 Declare the newly created temporary variable
+        history.add(goto_programt::make_decl(tmp_symbol, location));
+
+        // 3.2 Add an assignment such that the value pointed to by the new
+        // temporary variable is equal to the value of the corresponding
+        // parameter
+        history.add(goto_programt::make_assignment(
+          tmp_symbol, dereference_expr, location));
+      }
+
+      expr = parameter2history[dereference_expr];
+    }
+    else
+    {
+      log.error() << CPROVER_PREFIX "old does not currently support "
+                  << parameter.id() << " expressions." << messaget::eom;
+      throw 0;
+    }
+  }
+}
+
+void code_contractst::replace_loop_entry_parameter(
+  exprt &expr,
+  std::map<exprt, exprt> &parameter2history,
+  source_locationt location,
+  const irep_idt &mode,
+  goto_programt &history)
+{
+  for(auto &op : expr.operands())
+  {
+    replace_loop_entry_parameter(op, parameter2history, location, mode, history);
+  }
+
+  if(expr.id() == ID_loop_entry)
+  {
+    DATA_INVARIANT(
+    expr.operands().size() == 1, CPROVER_PREFIX "loop_entry must have one operand");
+
+    const auto &parameter = to_old_expr(expr).expression();
+
+    // TODO: generalize below
+    if(parameter.id() == ID_dereference)
+    {
+      const auto &dereference_expr = to_dereference_expr(parameter);
+
+      auto it = parameter2history.find(dereference_expr);
+
+      if(it == parameter2history.end())
+      {
+        // 1. Create a temporary symbol expression that represents the
+        // history variable
+        symbol_exprt tmp_symbol =
+          new_tmp_symbol(dereference_expr.type(), location, mode).symbol_expr();
+
+        // 2. Associate the above temporary variable to it's corresponding
+        // expression
+        parameter2history[dereference_expr] = tmp_symbol;
+
+        // 3. Add the required instructions to the instructions list
+        // 3.1 Declare the newly created temporary variable
+        history.add(goto_programt::make_decl(tmp_symbol, location));
+
+        // 3.2 Add an assignment such that the value pointed to by the new
+        // temporary variable is equal to the value of the corresponding
+        // parameter
+        history.add(goto_programt::make_assignment(
+          tmp_symbol, dereference_expr, location));
+      }
+
+      expr = parameter2history[dereference_expr];
+    }
+    else
+    {
+      log.error() << CPROVER_PREFIX "loop_entry does not currently support "
+                  << parameter.id() << " expressions." << messaget::eom;
+      throw 0;
+    }
+  }
+}
+
+void code_contractst::replace_loop_current_parameter(
+  exprt &expr,
+  std::map<exprt, exprt> &parameter2history,
+  source_locationt location,
+  const irep_idt &mode,
+  goto_programt &history)
+{
+  for(auto &op : expr.operands())
+  {
+    replace_loop_current_parameter(op, parameter2history, location, mode, history);
+  }
+
+  if(expr.id() == ID_loop_current)
+  {
+    DATA_INVARIANT(
+    expr.operands().size() == 1, CPROVER_PREFIX "loop_current must have one operand");
+
+    const auto &parameter = to_old_expr(expr).expression();
+
+    // TODO: generalize below
+    if(parameter.id() == ID_dereference)
+    {
+      const auto &dereference_expr = to_dereference_expr(parameter);
+
+      auto it = parameter2history.find(dereference_expr);
+
+      if(it == parameter2history.end())
+      {
+        // 1. Create a temporary symbol expression that represents the
+        // history variable
+        symbol_exprt tmp_symbol =
+          new_tmp_symbol(dereference_expr.type(), location, mode).symbol_expr();
+
+        // 2. Associate the above temporary variable to it's corresponding
+        // expression
+        parameter2history[dereference_expr] = tmp_symbol;
+
+        // 3. Add the required instructions to the instructions list
+        // 3.1 Declare the newly created temporary variable
+        history.add(goto_programt::make_decl(tmp_symbol, location));
+
+        // 3.2 Add an assignment such that the value pointed to by the new
+        // temporary variable is equal to the value of the corresponding
+        // parameter
+        history.add(goto_programt::make_assignment(
+          tmp_symbol, dereference_expr, location));
+      }
+
+      expr = parameter2history[dereference_expr];
+    }
+    else
+    {
+      log.error() << CPROVER_PREFIX "loop_current does not currently support "
+                  << parameter.id() << " expressions." << messaget::eom;
+      throw 0;
     }
   }
 }

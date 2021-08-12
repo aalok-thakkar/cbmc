@@ -2648,7 +2648,8 @@ exprt c_typecheck_baset::do_special_functions(
     return std::move(ok_expr);
   }
   else if(identifier == CPROVER_PREFIX "old" ||
-          identifier == CPROVER_PREFIX "loop_entry")
+          identifier == CPROVER_PREFIX "loop_entry" ||
+          identifier == CPROVER_PREFIX "loop_current")
   {
     if(expr.arguments().size() != 1)
     {
@@ -3934,11 +3935,11 @@ void c_typecheck_baset::disallow_loop_history_variables(const exprt &expr) const
     disallow_loop_history_variables(op);
   }
 
-  if(expr.id() == ID_loop_entry)
+  if(expr.id() == ID_loop_entry || expr.id() == ID_loop_current )
   {
     error().source_location = expr.source_location();
     error() << CPROVER_PREFIX
-      "loop_entry expressions are not allowed in function contracts"
+      "loop_entry and" CPROVER_PREFIX "loop_current expressions are not allowed in function contracts"
             << eom;
     throw 0;
   }
