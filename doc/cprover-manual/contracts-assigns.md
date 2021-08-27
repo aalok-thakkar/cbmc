@@ -174,3 +174,83 @@ int foo()
   return rval;
 }
 ```
+## In Loop Contracts
+
+### Syntax
+
+```c
+__CPROVER_assigns(*identifier*, ...)
+```
+
+Similar to function contracts, an _assigns_ clause for loop contracts allows the 
+user to specify memory locations that may be written by a loop body. 
+
+### Parameters
+
+An _assigns_ clause currently supports simple variable types and their pointers,
+structs, and arrays.  Recursive pointer structures are left to future work, as
+their support would require changes to CBMC's memory model.
+
+```c
+/* Examples */
+[TODO]
+```
+
+### Semantics
+
+The semantics of an _assigns_ clause for a given loop can be understood
+in two contexts: enforcement and replacement.
+
+#### Enforcement
+
+In order to determine whether an _assigns_ clause is a sound abstraction of the
+set of memory locations being written by the loop body, the loop body is instrumented 
+with assertion statements before each statement which may write to memory (e.g., an
+assignment). These assertions are based on the writable locations identified by the 
+_assigns_ clauses.
+
+For example, consider the following loop:
+
+```c
+[TODO]
+```
+
+Assignable variables in the loop are those specified so with `__CPROVER_assigns`, 
+together with any variables defined in the loop body. In the case of `sum` that 
+is `*out` and `result`.  Each assignment will be instrumented with an assertion 
+to check that the target of the assignment is one of those options.
+
+```c
+[TODO]
+```
+
+Additionally, the set of assignable target expressions is updated while
+traversing the loop body when new memory is allocated.  For example, the
+statement `x = (int *)malloc(sizeof(int))` would create a pointer, stored in
+`x`, to assignable memory. If memory is allocated for a struct, the subcomponents are
+considered assignable as well.
+
+Finally, a set of freely-assignable symbols *free* is tracked during the
+traversal of the loop body. These are locally-defined variables and formal
+parameters without dereferences.  For example, in a variable declaration `<type>
+x = <initial_value>`, `x` would be added to the *free* set. Assignment statements
+where the left-hand-side is in the *free* set are not instrumented with the above assertions.
+
+#### Replacement
+
+Assuming _assigns_ clauses are a sound abstraction of the write set for a given loop,
+CBMC will add non-deterministic assignments for each object listed in the `__CPROVER_assigns`
+clause. Since these objects might be modified by the loop, CBMC uses
+non-deterministic assignments to havoc them and restrict their values only by assuming 
+the loop invariant.
+
+In our example, consider [TODO]
+
+```c
+[TODO]
+```
+
+
+```c
+[TODO]
+```

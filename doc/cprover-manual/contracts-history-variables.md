@@ -20,7 +20,7 @@ pointers, and struct members are supported.
 ### Semantics
 
 To illustrate the behavior of `__CPROVER_old`, take a look at the example
-bellow.  If the function returns a failure code, the value of `*out` should not
+below.  If the function returns a failure code, the value of `*out` should not
 have been modified.
 
 ```c
@@ -32,4 +32,54 @@ __CPROVER_assigns(*out)
 {
   /* ... */
 }
+```
+
+### Syntax
+
+```c
+__CPROVER_loop_entry(*identifier*)
+```
+
+Refers to the value of a given object at the start of the loop.
+
+**Important.** This construct may be used only within the context of 
+`__CPROVER_loop_invariant`.
+
+### Parameters
+
+`__CPROVER_loop_invariant` takes a single argument, which is an expression. For now, 
+only scalars, pointers, and struct members are supported.
+
+### Semantics
+
+To illustrate the behavior of `__CPROVER_loop_entry`, take a look at the example
+below.  
+
+```c
+[TODO]
+```
+
+### Syntax
+
+```c
+__CPROVER_loop_old(*identifier*)
+```
+
+Refers to the value of a given object in the previous iteration of the loop.
+
+**Important.** This construct may be used only within the context of 
+`__CPROVER_loop_invariant`.
+
+### Parameters
+
+`__CPROVER_loop_invariant` takes a single argument, which is an expression. For now, 
+only scalars, pointers, and struct members are supported.
+
+### Semantics
+
+To illustrate the behavior of `__CPROVER_loop_old`, take a look at the example
+below.  
+
+```c
+[TODO]
 ```
